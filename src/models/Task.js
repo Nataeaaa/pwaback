@@ -7,9 +7,20 @@ const taskSchema = new mongoose.Schema(
         description:{type: String, trim: true, default:''},
         status:{
             type: String,
-            enum: ['Pendiente', 'En progreso', 'Completada'],
+            enum: ['Pendiente', 'En Progreso', 'Completada'],
             default: 'Pendiente',
         },
+        // ── NUEVO ──────────────────────────────────────────
+        priority: {
+            type: String,
+            enum: ['bajo', 'medio', 'alto'],
+            default: 'medio',
+        },
+        dueDate: {
+            type: Date,
+            default: null,
+        },
+        // ───────────────────────────────────────────────────
         clienteId:{type: String},
         deleted:{type: Boolean, default: false}
     },

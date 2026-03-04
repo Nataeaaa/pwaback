@@ -1,7 +1,8 @@
 // controllers/task.controller.js
 import Task from "../models/Task.js";
 
-const allowed = ["Pendiente", "En Progreso", "Completada"]; // <-- usa este nombre en todos lados
+const allowed    = ["Pendiente", "En Progreso", "Completada"];
+const priorities = ["bajo", "medio", "alto"]; // ← NUEVO
 
 export async function list(req, res) {
   const items = await Task.find({ user: req.userId, deleted: false }).sort({ createdAt: -1 });
@@ -9,14 +10,16 @@ export async function list(req, res) {
 }
 
 export async function create(req, res) {
-  const { title, description = "", status = "Pendiente", clienteId } = req.body;
+  const { title, description = "", status = "Pendiente", clienteId, priority = "medio", dueDate } = req.body; // ← priority + dueDate
   if (!title) return res.status(400).json({ message: "El título es requerido" });
 
   const task = await Task.create({
     user: req.userId,
     title,
     description,
-    status: allowed.includes(status) ? status : "Pendiente", // <-- allowed
+    status:   allowed.includes(status)       ? status   : "Pendiente",
+    priority: priorities.includes(priority)  ? priority : "medio",    // ← NUEVO
+    dueDate:  dueDate ? new Date(dueDate) : null,                      // ← NUEVO
     clienteId,
   });
   res.status(201).json({ task });
@@ -24,14 +27,20 @@ export async function create(req, res) {
 
 export async function update(req, res) {
   const { id } = req.params;
-  const { title, description, status } = req.body;
+  const { title, description, status, priority, dueDate } = req.body; // ← priority + dueDate
 
-  if (status && !allowed.includes(status))
+  if (status   && !allowed.includes(status))
     return res.status(400).json({ message: "Estado inválido" });
+  if (priority && !priorities.includes(priority))
+    return res.status(400).json({ message: "Prioridad inválida" });
+
+  const patch = { title, description, status };
+  if (priority !== undefined) patch.priority = priority;                           // ← NUEVO
+  if (dueDate  !== undefined) patch.dueDate  = dueDate ? new Date(dueDate) : null; // ← NUEVO
 
   const task = await Task.findOneAndUpdate(
     { _id: id, user: req.userId },
-    { title, description, status },
+    patch,
     { new: true }
   );
   if (!task) return res.status(404).json({ message: "Tarea no encontrada" });
@@ -64,16 +73,20 @@ export async function bulksync(req, res) {
 
       if (!doc) {
         doc = await Task.create({
-          user: req.userId,
-          title: t.title,
+          user:        req.userId,
+          title:       t.title,
           description: t.description ?? "",
-          status: allowed.includes(t.status) ? t.status : "Pendiente",
-          clienteId: t.clienteId,
+          status:      allowed.includes(t.status)      ? t.status   : "Pendiente",
+          priority:    priorities.includes(t.priority) ? t.priority : "medio",     // ← NUEVO
+          dueDate:     t.dueDate ? new Date(t.dueDate) : null,                     // ← NUEVO
+          clienteId:   t.clienteId,
         });
       } else {
-        doc.title = t.title ?? doc.title;
+        doc.title       = t.title       ?? doc.title;
         doc.description = t.description ?? doc.description;
-        if (t.status && allowed.includes(t.status)) doc.status = t.status;
+        if (t.status   && allowed.includes(t.status))      doc.status   = t.status;
+        if (t.priority && priorities.includes(t.priority)) doc.priority = t.priority; // ← NUEVO
+        if (t.dueDate  !== undefined) doc.dueDate = t.dueDate ? new Date(t.dueDate) : null; // ← NUEVO
         await doc.save();
       }
 
